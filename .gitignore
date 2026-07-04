@@ -1,0 +1,14 @@
+# VS Code
+.vscode/
+
+# Godot
+game/.godot/
+
+# Logs
+*.log
+
+# Windows
+Thumbs.db
+
+# macOS
+.DS_Store
