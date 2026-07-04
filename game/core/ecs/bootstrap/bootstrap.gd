@@ -5,11 +5,12 @@
 ## ejecuta Systems y no debe ejecutarse más de una vez por ciclo de vida
 ## del Framework (idempotencia).
 ##
-## Sprint 1 (Runtime Foundation) sólo implementa lógica real hasta
-## CORE_CREATED, WORLD_READY y RUNNING. Las etapas intermedias
-## (Registries, Resources, Systems, Event Bus, Query Engine, Save,
-## Network) se atraviesan como "stub" hasta que su fase del roadmap las
-## implemente — ver BootstrapState.RUNTIME_FOUNDATION_STATES.
+## Sprint 1 (Runtime Foundation) implementó lógica real hasta CORE_CREATED,
+## WORLD_READY y RUNNING. Sprint 2 (ECS Core, Package 1 — Entity System)
+## añadió la inicialización real de REGISTRIES_INITIALIZED. El resto de
+## etapas intermedias (Resources, Systems, Event Bus, Query Engine, Save,
+## Network) se atraviesan todavía como "stub" hasta que su fase del
+## roadmap las implemente.
 class_name Bootstrap
 extends Node
 
@@ -27,7 +28,6 @@ var _has_run: bool = false
 
 ## Estados intermedios sin subsistema real todavía en este Sprint.
 const _STUB_STATES: Array[BootstrapState.State] = [
-	BootstrapState.State.REGISTRIES_INITIALIZED,
 	BootstrapState.State.RESOURCES_LOADED,
 	BootstrapState.State.SYSTEMS_REGISTERED,
 	BootstrapState.State.EVENT_BUS_READY,
@@ -61,6 +61,13 @@ func _run_bootstrap_sequence() -> void:
 
 	_runtime = ECSRuntime.new(_logger)
 	_runtime.initialize()
+
+	if not _advance_to(BootstrapState.State.REGISTRIES_INITIALIZED):
+		return
+	var entity_registry := EntityRegistry.new(_logger)
+	entity_registry.initialize()
+	_runtime.get_context().entity_registry = entity_registry
+	_logger.info("bootstrap", "Entity Registry inicializado", entity_registry.get_debug_info())
 
 	for stub_state in _STUB_STATES:
 		if not _advance_to(stub_state):

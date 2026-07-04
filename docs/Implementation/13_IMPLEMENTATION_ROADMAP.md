@@ -900,6 +900,16 @@ Acceptance Criteria
 - Destroyed entities cannot be accessed
 - Entity validation is deterministic
 
+**Estado (Sprint 2):** Implementado y verificado. Código en
+`game/core/ecs/entities/` (`EntityId`, `EntityStorage`, `EntityAllocator`,
+`EntityValidator`, `EntityRegistry`) e interfaz `IEntityRegistry` en
+`game/core/ecs/interfaces/`. `Bootstrap` inicializa el `EntityRegistry`
+real en la etapa `REGISTRIES_INITIALIZED` y lo expone en `ECSContext`.
+Verificado mediante `game/core/ecs/testing/entity_registry_dev_check.gd`
+(script de desarrollo, no framework de pruebas automatizado) y una
+ejecución headless completa del Bootstrap. Package 2 (Component Metadata)
+en adelante permanece pendiente.
+
 ---
 
 ## Package 2 — Component Metadata

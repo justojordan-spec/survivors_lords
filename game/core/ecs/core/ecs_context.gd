@@ -6,15 +6,15 @@
 ##
 ## Ver docs/Implementation/03_CORE_INTERFACES.md (IECSContext).
 ##
-## En Sprint 1 (Runtime Foundation) ninguno de estos servicios existe
-## todavía: los campos permanecen en null hasta que la fase del roadmap
-## correspondiente (docs/Implementation/13_IMPLEMENTATION_ROADMAP.md) los
-## implemente y el Bootstrap los registre aquí.
+## Los servicios que todavía no existen permanecen en null hasta que la
+## fase del roadmap correspondiente (docs/Implementation/
+## 13_IMPLEMENTATION_ROADMAP.md) los implemente y el Bootstrap los
+## registre aquí.
 class_name ECSContext
 extends RefCounted
 
-var entity_registry: Object = null       ## TODO(Fase 2 - ECS Core)
-var component_registry: Object = null    ## TODO(Fase 2 - ECS Core)
+var entity_registry: EntityRegistry = null  ## Fase 2, Package 1 (Sprint 2)
+var component_registry: Object = null    ## TODO(Fase 2 - ECS Core, Package 2)
 var system_registry: Object = null       ## TODO(Fase 3 - Scheduler)
 var scheduler: Object = null             ## TODO(Fase 3 - Scheduler)
 var event_bus: Object = null             ## TODO(Fase 6 - Event Bus)
