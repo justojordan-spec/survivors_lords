@@ -6,11 +6,14 @@
 ## del Framework (idempotencia).
 ##
 ## Sprint 1 (Runtime Foundation) implementó lógica real hasta CORE_CREATED,
-## WORLD_READY y RUNNING. Sprint 2 (ECS Core, Package 1 — Entity System)
-## añadió la inicialización real de REGISTRIES_INITIALIZED. El resto de
-## etapas intermedias (Resources, Systems, Event Bus, Query Engine, Save,
-## Network) se atraviesan todavía como "stub" hasta que su fase del
-## roadmap las implemente.
+## WORLD_READY y RUNNING. Sprint 2 (ECS Core, Package 1 — Entity System) y
+## Sprint 4 (ECS Runtime Integration, Package 2 — Components) completaron
+## la etapa REGISTRIES_INITIALIZED: crea EntityRegistry y ComponentRegistry
+## y conecta la notificación de destrucción entre ambos (Bootstrap sólo
+## ensambla; no decide ni ejecuta esa coordinación). El resto de etapas
+## intermedias (Resources, Systems, Event Bus, Query Engine, Save, Network)
+## se atraviesan todavía como "stub" hasta que su fase del roadmap las
+## implemente.
 class_name Bootstrap
 extends Node
 
@@ -66,8 +69,22 @@ func _run_bootstrap_sequence() -> void:
 		return
 	var entity_registry := EntityRegistry.new(_logger)
 	entity_registry.initialize()
+
+	var component_registry := ComponentRegistry.new(entity_registry, _logger)
+	component_registry.initialize()
+
+	# Composición de dependencias entre Packages: EntityRegistry sigue sin
+	# conocer a ComponentRegistry (recibe un Callable opaco), pero al
+	# destruir una entidad notificará a ComponentRegistry para que elimine
+	# sus Components (ver EntityRegistry.set_destruction_listener() y
+	# ComponentRegistry.remove_all_components()). Ensamblar esta conexión
+	# es responsabilidad del Bootstrap; ejecutarla no lo es.
+	entity_registry.set_destruction_listener(component_registry.remove_all_components)
+
 	_runtime.get_context().entity_registry = entity_registry
+	_runtime.get_context().component_registry = component_registry
 	_logger.info("bootstrap", "Entity Registry inicializado", entity_registry.get_debug_info())
+	_logger.info("bootstrap", "Component Registry inicializado", component_registry.get_debug_info())
 
 	for stub_state in _STUB_STATES:
 		if not _advance_to(stub_state):

@@ -930,6 +930,60 @@ Acceptance Criteria
 - Metadata immutable after registration
 - Component lookup deterministic
 
+**Estado (Sprint 3A):** Implementado y verificado sólo el sistema de
+tipos (Component registration / identifiers / type metadata / lookup).
+Código en `game/core/ecs/components/` (`ComponentId`, `ComponentType`,
+`ComponentMetadata`, `ComponentTypeRegistry`) y
+`DuplicateRegistrationException` en `game/core/ecs/exceptions/`.
+Size/Alignment/Reflection metadata no aplican a GDScript y no se
+implementaron (no definidas por la arquitectura para este lenguaje).
+Deliberadamente sin almacenamiento de Components, pools, sparse sets,
+signatures ni integración con Bootstrap/ECSContext todavía — eso
+corresponde a los siguientes sprints de este mismo Package.
+
+**Estado (Sprint 3B):** Implementado y verificado el almacenamiento
+interno de Components: `ComponentStorage` (sparse set: array denso +
+disperso, swap-remove), `ComponentAllocator` (capacidad/crecimiento) y
+`ComponentValidator` (entidad válida, tipo válido, componente existente),
+en `game/core/ecs/components/`. Integrado con `EntityRegistry`/`IEntityRegistry`
+(Sprint 2) y `ComponentTypeRegistry` (Sprint 3A) sólo a nivel de
+validación, ejercitado con hasta 20.000 componentes en el script de
+desarrollo. Todavía sin fachada `ComponentRegistry`/`IComponentRegistry`
+ni integración con Bootstrap/ECSContext — corresponde al próximo sprint
+de este Package.
+
+**Estado (Sprint 3C):** Implementada la fachada `ComponentRegistry` /
+`IComponentRegistry` en `game/core/ecs/components/component_registry.gd`
+e interfaz en `game/core/ecs/interfaces/i_component_registry.gd`. API
+pública (`register_component_type`, `add_component`, `replace_component`,
+`remove_component`, `has_component`, `get_component`) trabaja
+exclusivamente con `EntityId`/`ComponentId`; `ComponentStorage` deja de
+usarse externamente y pasa a ser creado/administrado internamente por la
+fachada (uno por tipo, de forma perezosa). Verificado con script de
+desarrollo que sólo usa la API de `ComponentRegistry` (20.000 Components
+en alta/baja masiva). Sin integración con Bootstrap/ECSContext, sin
+destrucción automática de Components al destruir una entidad, sin
+Signatures/Archetypes/Query Engine — corresponde a sprints posteriores.
+
+**Estado (Sprint 4 — ECS Runtime Integration):** `ComponentRegistry`
+integrado en `ECSContext` (campo tipado, junto a `EntityRegistry`) y
+ensamblado por `Bootstrap` en la etapa `REGISTRIES_INITIALIZED`.
+`EntityRegistry` expone `set_destruction_listener(callback: Callable)`
+(sin dependencia de tipo hacia `ComponentRegistry`); `Bootstrap` conecta
+`entity_registry.set_destruction_listener(component_registry.remove_all_components)`.
+Al procesar destrucciones diferidas, `EntityRegistry` notifica antes de
+reciclar el índice, y `ComponentRegistry.remove_all_components()` elimina
+los Components de la entidad en todos los `ComponentStorage` creados.
+`ECSContext.dispose()` (invocado en cascada desde `ECSRuntime.dispose()`)
+libera `ComponentRegistry` y `EntityRegistry` en orden. Verificado con
+script de desarrollo (`core/ecs/testing/runtime_integration_dev_check.gd`)
+y ejecución completa del Bootstrap. **Cierra el Package Components
+(Package 2) de la Fase 2.** Persisten como limitación conocida y
+aceptada (ver informe del sprint): `remove_all_components()` es O(tipos
+de Component con Storage creado), no O(componentes de la entidad) —
+pendiente de resolver junto con Signatures/Archetypes si las métricas lo
+justifican.
+
 ---
 
 ## Package 3 — Archetype Model
@@ -1190,6 +1244,21 @@ Implement the deterministic execution scheduler responsible for orchestrating ev
 The scheduler executes systems, enforces execution order, validates dependencies and guarantees deterministic behavior.
 
 No gameplay scheduling should occur before this phase is complete.
+
+**Estado (Sprint 5 — ECS System Foundation, prerrequisito de esta Fase):**
+Implementada la infraestructura base de Systems que `docs/Implementation/
+06_SYSTEM_BASE.md` exige antes del Scheduler: `ISystem` e `IECSContext`
+(`game/core/ecs/interfaces/`), `SystemBase`, `SystemState` (ciclo de vida
+mínimo: `CREATED → INITIALIZED → DISPOSED`) y `SystemPhase` (metadato
+declarativo, sin comportamiento) en `game/core/ecs/systems/`. `ECSContext`
+ahora extiende `IECSContext` y expone `get_entity_registry()`/
+`get_component_registry()`. Ningún System conoce `ComponentStorage`,
+`ComponentAllocator`, `EntityStorage` ni `EntityAllocator` — sólo los
+contratos que expone el Context. Deliberadamente **no** implementados
+todavía (dependen del Scheduler real): estados `Ready`/`Running`/
+`Paused`/`Disabled`/`Error`, `SystemMetadata`, `SystemProfiler`,
+`SystemValidator`, System Registry, ejecución por Queries. Ver el informe
+del Sprint 5 para el detalle de las decisiones de simplificación.
 
 ---
 

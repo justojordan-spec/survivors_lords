@@ -8,7 +8,9 @@
 ##
 ## Dependencias: EntityAllocator, EntityStorage, EntityValidator,
 ##   FrameworkLogger. No depende de Components, Systems, Queries, Event
-##   Bus, Scheduler ni SceneTree.
+##   Bus, Scheduler ni SceneTree — incluido el mecanismo de notificación
+##   de destrucción (ver más abajo), que usa un Callable opaco y nunca
+##   referencia el tipo ComponentRegistry.
 ##
 ## Invariantes:
 ##   - Toda Entity devuelta por create_entity() queda en estado ALIVE.
@@ -19,6 +21,9 @@
 ##     cambió) — verificado por EntityValidator.
 ##   - Solicitar la destrucción de una Entity ya inválida o ya destruida
 ##     se ignora de forma segura y nunca corrompe el Registry.
+##   - Si hay un listener de destrucción registrado, se invoca para cada
+##     Entity exactamente una vez, después de marcarla DESTROYED y antes
+##     de reciclar su índice (ver set_destruction_listener()).
 ##
 ## Complejidad: create_entity(), destroy_entity() e is_alive() son O(1)
 ##   amortizado. process_pending_destructions() es O(n) sobre la
@@ -39,10 +44,21 @@ var _logger: FrameworkLogger
 
 var _pending_destroy: Array[int] = []
 var _active_count: int = 0
+var _on_entity_destroyed: Callable = Callable()
 
 
 func _init(logger: FrameworkLogger) -> void:
 	_logger = logger
+
+
+## Registra un callback invocado con el EntityId de cada Entity
+## efectivamente destruida (ver invariantes). Permite que otros Packages
+## (p. ej. Component Registry) reaccionen a la destrucción sin que
+## EntityRegistry conozca su tipo concreto — sustituye temporalmente al
+## futuro IEventBus (Fase 6), que todavía no existe. Sólo admite un
+## listener a la vez; sobrescribe cualquier registro previo.
+func set_destruction_listener(callback: Callable) -> void:
+	_on_entity_destroyed = callback
 
 
 ## IInitializable.initialize() — crea Storage/Allocator/Validator internos.
@@ -86,21 +102,27 @@ func is_alive(id: int) -> bool:
 
 
 ## Ejecuta el pipeline de destrucción diferida sobre todas las entidades
-## marcadas PENDING_DESTROY: recicla su índice e incrementa su generación.
+## marcadas PENDING_DESTROY: notifica al listener de destrucción (si hay
+## uno registrado) y luego recicla el índice, incrementando su generación.
+## El orden es obligatorio: los Components deben eliminarse mientras el
+## índice todavía identifica a la Entity saliente, nunca después de
+## reciclarlo (docs/Implementation/05_COMPONENT_REGISTRY.md, "Orden de
+## Eliminación": Mark Pending Destroy → Remove Components → Recycle).
 ##
 ## TODO(Fase 3 - Scheduler): debe invocarse desde un punto seguro del
 ## ciclo de ejecución del Scheduler. Hasta que exista, se invoca
-## manualmente (ver core/ecs/testing/entity_registry_dev_check.gd).
-## TODO(Fase 2 - Package 2, Component Registry): antes de reciclar el
-## índice corresponde eliminar los Components asociados; no se
-## implementa aquí porque el Component Registry todavía no existe.
+## manualmente (ver core/ecs/testing/*_dev_check.gd).
 ##
-## Complejidad: O(n) sobre la cantidad de destrucciones pendientes.
+## Complejidad: O(n) sobre la cantidad de destrucciones pendientes,
+## multiplicado por el coste del listener de destrucción (ver
+## ComponentRegistry.remove_all_components() para su análisis).
 func process_pending_destructions() -> int:
 	var processed := _pending_destroy.size()
 	for id in _pending_destroy:
 		var index := EntityId.index_of(id)
 		_storage.set_state(index, EntityStorage.State.DESTROYED)
+		if _on_entity_destroyed.is_valid():
+			_on_entity_destroyed.call(id)
 		_allocator.release(index)
 		_active_count -= 1
 	_pending_destroy.clear()

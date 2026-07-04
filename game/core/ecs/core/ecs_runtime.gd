@@ -46,8 +46,12 @@ func restart() -> void:
 	_transition_to(ModuleLifecycleState.State.RUNNING)
 
 
-## IDisposable.dispose() — libera el Context. No reinicializa el Runtime.
+## IDisposable.dispose() — libera el Context (que en cascada libera los
+## servicios que contiene, ver ECSContext.dispose()). No reinicializa el
+## Runtime.
 func dispose() -> void:
+	if _context != null:
+		_context.dispose()
 	_transition_to(ModuleLifecycleState.State.DESTROYED)
 	_context = null
 
